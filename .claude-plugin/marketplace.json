@@ -1,0 +1,27 @@
+{
+  "name": "claude-code-mods",
+  "description": "Mods for Claude Code that watch a real session and speak up only when they have something to say.",
+  "owner": { "name": "Amaan2210" },
+  "plugins": [
+    {
+      "name": "receipts",
+      "source": "./mods/receipts",
+      "description": "Checks what Claude and its helpers say they did against what really happened. Speaks up only when a claim has no proof."
+    },
+    {
+      "name": "blast-radius",
+      "source": "./mods/blast-radius",
+      "description": "When Claude changes a function, tells it every place that function is used, and asks you only if some of those files were never opened."
+    },
+    {
+      "name": "crew",
+      "source": "./mods/crew",
+      "description": "A crew of models for one task: the best model plans and signs off, a mid model builds, a small one runs the checks. Starts in practice mode, which changes nothing."
+    },
+    {
+      "name": "pit-stop",
+      "source": "./mods/pit-stop",
+      "description": "Cleans Claude's memory at a good moment and shows what goes and what stays. Holds an automatic clean-up while Claude is in the middle of a multi-file change."
+    }
+  ]
+}
