@@ -1,0 +1,25 @@
+{
+  "name": "pit-stop",
+  "version": "0.1.0",
+  "description": "Cleans Claude's memory at a good moment and shows what goes and what stays. Holds an automatic clean-up while Claude is in the middle of a multi-file change.",
+  "author": {
+    "name": "Amaan2210"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/Amaan2210/claude-code-mods",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "threshold": {
+      "type": "number",
+      "title": "Offer a clean-up at (% full)",
+      "description": "When memory is this full and a turn has ended, Pit Stop offers one clean-up.",
+      "default": 80
+    },
+    "hardLimit": {
+      "type": "number",
+      "title": "Always clean up at (% full)",
+      "description": "At this fullness a clean-up is never held, even in the middle of a change.",
+      "default": 95
+    }
+  }
+}
