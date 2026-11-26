@@ -1,0 +1,23 @@
+{
+  "name": "crew",
+  "version": "0.1.0",
+  "description": "A crew of models for one task: the best model plans and signs off, a mid model builds, a small one runs the checks. Starts in practice mode, which changes nothing and only shows what it would have done.",
+  "author": {
+    "name": "Amaan2210"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/Amaan2210/claude-code-mods",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "mode": {
+      "type": "string",
+      "title": "Crew mode",
+      "description": "shadow: change nothing, only show which model would have been picked and what it would cost. on: really switch models at hand-offs.",
+      "options": [
+        "shadow",
+        "on"
+      ],
+      "default": "shadow"
+    }
+  }
+}
