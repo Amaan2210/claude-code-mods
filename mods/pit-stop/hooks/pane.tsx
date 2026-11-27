@@ -158,9 +158,11 @@ export function blocksSource(w: number, s: Snap): string {
     '<defs><pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">' +
     '<rect width="2.2" height="7" fill="#000" opacity="0.16"/></pattern></defs>'
   let left = 0
-  const region = (blocks: Block[], width: number, title: string, tone: string) => {
+  // A narrow region drops the percentage, then the size, rather than cutting its heading short.
+  const region = (blocks: Block[], width: number, titles: string[], tone: string) => {
     if (width <= 0) return
-    g += svgText(left + 2, 12, fit(title, width - 4, 11), { fill: tone, size: 11, weight: 700 })
+    const title = titles.find(t => t.length * 6.6 <= width - 4) ?? titles[titles.length - 1] ?? ''
+    g += svgText(left + 2, 12, title, { fill: tone, size: 11, weight: 700 })
     const placed: Placed[] = []
     lay(blocks, left, TOP, width, H - TOP, placed)
     for (const b of placed) {
@@ -175,8 +177,8 @@ export function blocksSource(w: number, s: Snap): string {
     }
     left += width + GAP
   }
-  region(stays, wStay, `STAYS · ${tokensFmt(stayTokens)} · ${percentOf(stayTokens, win)}%`, TEAL.light)
-  region(goes, wGo, `GOES · ${tokensFmt(goTokens)} · ${percentOf(goTokens, win)}%`, AMBER)
+  region(stays, wStay, [`STAYS · ${tokensFmt(stayTokens)} · ${percentOf(stayTokens, win)}%`, `STAYS · ${tokensFmt(stayTokens)}`, 'STAYS'], TEAL.light)
+  region(goes, wGo, [`GOES · ${tokensFmt(goTokens)} · ${percentOf(goTokens, win)}%`, `GOES · ${tokensFmt(goTokens)}`, 'GOES'], AMBER)
   if (wFree > 0) {
     g += svgText(left + 2, 12, 'FREE', { size: 11, weight: 700 })
     g += `<rect x="${(left + 1).toFixed(1)}" y="${TOP + 1}" width="${Math.max(1, wFree - 2).toFixed(1)}" height="${H - TOP - 2}" rx="4" fill="none" class="l" stroke="#3a3e55" stroke-dasharray="4 4"/>`
@@ -196,7 +198,7 @@ function entryRow(el: Rich, $: Dollar, x: Entry, tone: string, canMove: boolean)
   return (
     <Box key={`row-${x.item.id}`} gap={1} alignItems="center" hover={{ backgroundColor: tint(TONE.grey, 0.12) }}>
       <Text color={tone}>■</Text>
-      <Box flexGrow={1} flexDirection="column">
+      <Box flexGrow={1} minWidth={0} flexDirection="column">
         <Text size="footnote" mono weight="semibold" wrap="truncate-end">
           {x.item.label}
         </Text>
@@ -204,14 +206,16 @@ function entryRow(el: Rich, $: Dollar, x: Entry, tone: string, canMove: boolean)
           {x.why}
         </Text>
       </Box>
-      <Text size="footnote" tabular>
-        {tokensFmt(x.item.tokens)}
-      </Text>
-      {canMove ? (
-        <Button key={`move-${x.item.id}`} onPress={() => toggleMove($, x.item.id)}>
-          {x.keeps ? 'Let it go' : 'Keep it'}
-        </Button>
-      ) : null}
+      <Box flexShrink={0} gap={1} alignItems="center">
+        <Text size="footnote" tabular>
+          {tokensFmt(x.item.tokens)}
+        </Text>
+        {canMove ? (
+          <Button key={`move-${x.item.id}`} onPress={() => toggleMove($, x.item.id)}>
+            {x.keeps ? 'Let it go' : 'Keep it'}
+          </Button>
+        ) : null}
+      </Box>
     </Box>
   )
 }
@@ -221,7 +225,7 @@ function totalRow(el: Rich, tone: string, label: string, tokens: number) {
   return (
     <Box gap={1} alignItems="center">
       <Text color={tone}>■</Text>
-      <Box flexGrow={1}>
+      <Box flexGrow={1} minWidth={0}>
         <Text>{label}</Text>
       </Box>
       <Text weight="semibold" tabular>

@@ -166,7 +166,7 @@ function proofBox(el: Rich, s: Step) {
         <Text size="footnote" dimColor>
           {isEdit ? 'Edited' : s.by ? 'Receipts ran' : 'Ran'}
         </Text>
-        <Box flexGrow={1}>
+        <Box flexGrow={1} minWidth={0}>
           <Text size="footnote" mono weight="semibold" wrap="truncate-end">
             {isEdit ? (s.file ?? '') : (s.cmd ?? '')}
           </Text>
@@ -313,7 +313,7 @@ export function rich($: EngineInterface, el: Rich, d: Data, columns?: number) {
         )}
       </Box>
 
-      <Box flexDirection="column">
+      <Box flexDirection="column" gap="xs">
         <Box gap={1} alignItems="flex-end">
           <Text size="title" weight="bold" tabular>
             {d.claims.length ? statusFor(d.claims) : 'No claims checked yet'}
@@ -351,12 +351,12 @@ export function rich($: EngineInterface, el: Rich, d: Data, columns?: number) {
                 alignItems="center"
                 paddingX={1}
                 borderStyle="round"
-                borderColor={isFirst ? tint(HEX[c.status], 0.5) : 'transparent'}
-                backgroundColor={isFirst ? tint(HEX[c.status], 0.08) : 'transparent'}
+                borderColor={isFirst ? tint(HEX[c.status], 0.5) : tint(TONE.grey, 0.3)}
+                backgroundColor={isFirst ? tint(HEX[c.status], 0.08) : tint(TONE.grey, 0.04)}
                 hover={{ backgroundColor: tint(TONE.grey, 0.14) }}
               >
                 <Svg source={badge(GLYPH[c.status], HEX[c.status])} alt={LABEL[c.status]} width={16} height={16} />
-                <Box flexGrow={1}>
+                <Box flexGrow={1} minWidth={0}>
                   <Text maxLines={2}>{c.text}</Text>
                 </Box>
                 <Text size="footnote" weight="semibold" color={HEX[c.status]}>
@@ -384,7 +384,7 @@ export function rich($: EngineInterface, el: Rich, d: Data, columns?: number) {
                 width={16}
                 height={16}
               />
-              <Box flexGrow={1}>
+              <Box flexGrow={1} minWidth={0}>
                 <Text maxLines={1}>{clip(helper.task || helper.text, 70)}</Text>
               </Box>
               <Text size="footnote" weight="semibold" color={helper.status === 'ok' ? TONE.ok : TONE.bad}>

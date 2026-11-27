@@ -219,7 +219,7 @@ export function richPane($: Api, el: Rich, d: PaneData, columns?: number) {
             return (
               <Box key={`step-${s.n}`} gap={1} alignItems="center" hover={{ backgroundColor: tint(TONE.grey, 0.12) }}>
                 <Text color={colorOf(model)}>●</Text>
-                <Box flexGrow={1}>
+                <Box flexGrow={1} minWidth={0}>
                   <Text wrap="truncate-end">{s.label}</Text>
                 </Box>
                 <Text size="footnote" weight="semibold" color={colorOf(model)}>
@@ -250,7 +250,7 @@ export function richPane($: Api, el: Rich, d: PaneData, columns?: number) {
                 width={16}
                 height={16}
               />
-              <Box flexGrow={1}>
+              <Box flexGrow={1} minWidth={0}>
                 <Text maxLines={2}>
                   {i + 1} {p}
                 </Text>
@@ -319,7 +319,7 @@ export function richPane($: Api, el: Rich, d: PaneData, columns?: number) {
                     {nameOf(model)}
                   </Button>
                 )}
-                <Box flexGrow={1} flexDirection="column">
+                <Box flexGrow={1} minWidth={0} flexDirection="column">
                   <Text size="footnote">{recipe[s].effort ? `${recipe[s].effort} effort` : 'helper'}</Text>
                   <Text size="caption" dimColor>
                     {s === 'look' ? 'same model as Build · ' : ''}
