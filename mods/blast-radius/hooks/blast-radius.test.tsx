@@ -218,16 +218,16 @@ test('the pane draws on every surface', async ($, on) => {
   }
 })
 
-test('the desktop pane has the map, and picking a file shows its lines', async ($, on) => {
+test('the desktop pane has the map, and shows the lines of a file not opened yet', async ($, on) => {
   engine(on)
   await $.turn.start({ text: 'go', turnId: 't1' })
   await $.tool.call(EDIT)
   const ui = await pane($, 'desktop')
 
   expect(await ui.find({ type: 'Svg' })).toBeDefined()
-  await ui.press({ key: 'file:src/cart/totals.ts' })
-  expect(await ui.find({ type: 'Text', text: /41\s+const net = roundPrice/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /58\s+subtotal/ })).toBeDefined()
+  expect(await ui.find({ key: 'file:src/cart/totals.ts' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /const net = roundPrice/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /subtotal/ })).toBeDefined()
   await ui.unmount()
 })
 
@@ -236,7 +236,8 @@ test('with nothing changed the pane says so, and the terminal has no map', async
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await pane($, surface)
     expect(await ui.find({ type: 'Text', text: /Nothing to show yet/ })).toBeDefined()
-    expect(await ui.find({ type: 'Svg' })).toBeUndefined()
+    if (surface === 'terminal') expect(await ui.find({ type: 'Svg' })).toBeUndefined()
+    else expect(await ui.find({ key: 'example' })).toBeDefined()
     await ui.unmount()
   }
 })

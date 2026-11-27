@@ -1,13 +1,15 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import { mapAlt, mapSvg, stateWords, countStates, COLORS } from './map'
+import { stateWords, countStates } from './map'
 import {
   EMPTY_RUN, checkPrompt, keyOf, neverOpened, noteForAll, plural, questionFor, rowsFor,
 } from './model'
 import { isCodeFile, namesChangedByEdit, namesChangedByWrite } from './names'
 import type { EditPart } from './names'
 import type { BlastSeen, BlastView } from '../types'
+import { richPane } from './pane'
+import { SAMPLE_RUN, SAMPLE_SEEN } from './sample'
 import { findUses } from './search'
 import type { Found } from './search'
 
@@ -21,6 +23,7 @@ const seen = atom({ plugin: 'blast-radius', key: 'seen' } as const, {} as BlastS
 const view = atom({ plugin: 'blast-radius', key: 'view' } as const, { name: null, file: null } as BlastView, {
   shape: 'view-1',
 })
+const example = atom({ plugin: 'blast-radius', key: 'isExample' } as const, false)
 type Kind = 'opened' | 'changed'
 const NO_FOUND: Found = { targets: [], problem: '' }
 const MAX_SEEN = 800
@@ -110,6 +113,8 @@ export const register: Register = on => {
   on('turn.start', async ($, e, next) => {
     try {
       if (e.agentId === undefined) {
+        // Real work has started: the example makes way for it.
+        if (await read($, example)) await update($, example, () => false)
         const r = await read($, run)
         if (r.isFollowUp) {
           // The turn the person asked for, to check the files: keep the run.
@@ -197,7 +202,10 @@ export const register: Register = on => {
       const { Box, Button, Text } = $.ui.resolve(e)
 
       return (
-        <Box flexDirection="column">
+        <Box flexDirection="column" borderStyle="round" borderColor="#ff7a59" paddingX={2} paddingY={1}>
+          <Text bold color="#ff7a59">
+            Blast Radius
+          </Text>
           <Text>{questionFor(r, never)}</Text>
           <Box flexDirection="row" gap={1}>
             <Button key="check" variant="primary" onPress={() => choose($, 'check')}>
@@ -215,9 +223,10 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const r = await read($, run)
-    const s = await read($, seen)
-    const v = await read($, view)
+    const isExample = await read($, example)
+    const r = isExample ? SAMPLE_RUN : await read($, run)
+    const s = isExample ? SAMPLE_SEEN : await read($, seen)
+    const v = isExample ? { name: null, file: null } : await read($, view)
     const target = r.targets.find(t => t.name === v.name) ?? r.targets[r.targets.length - 1]
     const rows = target ? rowsFor([target], s) : []
     const c = countStates(rows)
@@ -242,7 +251,7 @@ export const register: Register = on => {
     const first = r.isEnded ? 'Never opened' : 'Not opened yet'
 
     // The terminal, the editor and the phone: plain text.
-    if (e.surface !== 'desktop') {
+    if (e.surface === 'terminal') {
       const { Box, Text, Progress } = $.ui.resolve(e)
       const room = Math.max(3, (e.viewport?.rows ?? 20) - 8)
 
@@ -268,73 +277,15 @@ export const register: Register = on => {
       )
     }
 
-    const { Box, Text, Button, Progress, Svg } = $.ui.resolve(e)
-
-    return (
-      <Box flexDirection="column" gap={1}>
-        <Text bold>{headline}</Text>
-        {!target && <Text dimColor>{idle}</Text>}
-        {!target && r.problem !== '' && <Text dimColor>{r.problem}</Text>}
-        {r.targets.length > 1 && (
-          <Box flexDirection="row" gap={1} flexWrap="wrap">
-            {r.targets.map(t => (
-              <Button
-                key={`name:${t.name}`}
-                variant={t === target ? 'primary' : 'secondary'}
-                onPress={() => update($, view, () => ({ name: t.name, file: null }))}
-              >
-                {t.name}
-              </Button>
-            ))}
-          </Box>
-        )}
-        {target && (
-          <Svg
-            source={mapSvg(target.name, rows, picked?.file ?? null, r.isEnded)}
-            alt={mapAlt(target.name, rows, r.isEnded)}
-          />
-        )}
-        {target && <Progress label={progress} value={rows.length === 0 ? 0 : opened / rows.length} />}
-        {target && (
-          <Box flexDirection="column">
-            <Text color={COLORS.changed}>Changed by Claude: {c.changed}</Text>
-            <Text color={COLORS.opened}>Opened, not changed: {c.opened}</Text>
-            <Text color={COLORS.never}>
-              {first}: {c.never}
-            </Text>
-          </Box>
-        )}
-        {target && <Text>{verdict}</Text>}
-        {rows.length > 0 && <Text dimColor>Pick a file to see the lines that use {target?.name}:</Text>}
-        <Box flexDirection="column">
-          {rows.slice(0, 20).map(x => (
-            <Button
-              key={`file:${x.file}`}
-              plain
-              onPress={() => update($, view, o => ({ name: target?.name ?? o.name, file: x.file === o.file ? null : x.file }))}
-            >
-              {x.file === picked?.file ? '> ' : '  '}
-              {x.file} <Text dimColor>{plural(x.count, 'place')}, {stateWords(x.state, r.isEnded)}</Text>
-            </Button>
-          ))}
-          {rows.length > 20 && <Text dimColor>and {plural(rows.length - 20, 'more file')}</Text>}
-        </Box>
-        {picked && target && (
-          <Box flexDirection="column">
-            <Text bold>
-              {picked.file} ({stateWords(picked.state, r.isEnded)})
-            </Text>
-            {target.uses
-              .filter(u => u.file === picked.file)
-              .slice(0, 12)
-              .map(u => (
-                <Text mono>
-                  {u.line}  {u.text}
-                </Text>
-              ))}
-          </Box>
-        )}
-      </Box>
+    return richPane(
+      $.ui.resolve(e),
+      { run: r, seen: s, view: v, isExample },
+      {
+        choose: choice => choose($, choice),
+        pickName: name => update($, view, () => ({ name, file: null })),
+        setExample: isOn => update($, example, () => isOn),
+      },
+      e.props.bodyColumns,
     )
   })
 }

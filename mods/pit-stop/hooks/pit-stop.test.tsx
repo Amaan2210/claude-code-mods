@@ -362,7 +362,7 @@ test('the pane is drawn on terminal (plain text) and desktop (pictures)', async 
   await term.unmount()
 
   const desk = await $.ui.mount({ ...PANE, surface: 'desktop' })
-  expect(await desk.find({ type: 'Text', text: /Memory 83% full/ })).toBeDefined()
+  expect(await desk.find({ type: 'Text', text: /83% full/ })).toBeDefined()
   expect(await desk.find({ type: 'Svg' })).toBeDefined()
   expect(await desk.find({ type: 'Text', text: /sizes are estimates/i })).toBeDefined()
   await desk.unmount()
@@ -372,8 +372,9 @@ test('what it cannot know is not shown', async ($, on) => {
   await boot($, on)
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect(await ui.find({ type: 'Text', text: /not measured yet/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /Memory \d+% full/ })).toBeUndefined()
-  expect(await ui.find({ type: 'Svg' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /\d+% full/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /What goes, and why/ })).toBeUndefined()
+  expect(await ui.find({ key: 'example' })).toBeDefined()
   await ui.unmount()
 })
 

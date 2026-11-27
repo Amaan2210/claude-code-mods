@@ -15,7 +15,8 @@ import {
 } from './actions'
 import { MAX_HOLD_STEPS, STEER_MARK, changeState, classify, tokensFmt } from './plan'
 import { FRESH_FLOW } from './state'
-import { OfferRow, PlainPane, Pane, snapshot } from './view'
+import { Pane } from './pane'
+import { OfferRow, PlainPane, closeExample, snapshot } from './view'
 
 // The state scan reads `atom` calls in the file that uses them, so each file that reads or writes
 // state declares the same five atoms. Keep the shape tags in step with the other files.
@@ -91,7 +92,11 @@ export const register: Register = (on, options) => {
   })
 
   on('turn.start', async ($, e, next) => {
-    if (e.agentId === undefined) await update($, flow, f => ({ ...f, isTurnOpen: true }))
+    if (e.agentId === undefined) {
+      await update($, flow, f => ({ ...f, isTurnOpen: true }))
+      // Real work has started: the example makes way for it.
+      await closeExample($)
+    }
     return next(e)
   })
 
@@ -172,11 +177,8 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const s = await snapshot($)
     const ui = $.ui.resolve(e)
-    if (e.surface === 'desktop') {
-      const { Svg } = $.ui.resolve(e)
-      return Pane($, e, ui, Svg, s, settings)
-    }
-    return PlainPane($, ui, s, settings)
+    if (e.surface === 'terminal') return PlainPane($, ui, s, settings)
+    return Pane($, $.ui.resolve(e), s, settings, e.props.bodyColumns)
   })
 
   on('ui.render', { component: 'Placed' }, async ($, e, next) => {

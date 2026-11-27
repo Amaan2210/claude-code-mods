@@ -1,6 +1,6 @@
 {
   "name": "blast-radius",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "When Claude changes a function, tells it every place that function is used, and asks you only if some of those files were never opened.",
   "author": {
     "name": "Amaan2210"

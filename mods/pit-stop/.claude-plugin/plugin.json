@@ -1,6 +1,6 @@
 {
   "name": "pit-stop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Cleans Claude's memory at a good moment and shows what goes and what stays. Holds an automatic clean-up while Claude is in the middle of a multi-file change.",
   "author": {
     "name": "Amaan2210"

@@ -71,7 +71,7 @@ export function questionFor(run: BlastRun, never: readonly FileRow[]): string {
   const what = names.length === 1 ? names[0]! : `${names.length} names`
   const list = never.slice(0, 3).map(r => shortName(r.file)).join(', ')
   const rest = never.length - 3
-  const tail = rest > 0 ? ` and ${plural(rest, 'more')}` : ''
+  const tail = rest > 0 ? ` and ${rest} more` : ''
 
   return `${what} changed. ${never.length} of the ${plural(total, 'file')} that use it were never opened: ${list}${tail}.`
 }

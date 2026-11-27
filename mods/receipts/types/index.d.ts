@@ -90,6 +90,8 @@ declare module 'claude-code' {
       meta: Shaped<ReceiptsMeta>
       picked: string
       isBusy: boolean
+      /** True while the pane shows the built-in example. */
+      isExample: boolean
     }
   }
 }

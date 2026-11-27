@@ -28,7 +28,7 @@ import {
   signoffPrompt,
   type Usage,
 } from './crew'
-import { drawPane } from './pane'
+import { closeExample, drawPane } from './pane'
 
 
 // Change a tag when a value's fields change: it declines what an earlier
@@ -164,6 +164,7 @@ export const register: Register = (on, options) => {
 
   on('turn.start', async ($, e, next) => {
     if (e.agentId === undefined && e.text.trim() !== '' && !e.text.startsWith('/crew')) await begin($, e.text, false)
+    if (e.agentId === undefined) await closeExample($)
     return next(e)
   })
 
