@@ -59,6 +59,8 @@ declare module 'claude-code' {
       flow: Shaped<PitStopFlow>
       history: Shaped<PitStopPoint[]>
       offers: Shaped<PitStopOffer[]>
+      /** True while the pane shows the built-in example. */
+      isExample: boolean
     }
   }
 }
