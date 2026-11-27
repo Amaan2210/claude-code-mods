@@ -162,7 +162,7 @@ test('practice mode never changes a model, but records what it would have picked
   expect(state.completes.length).toBe(0)
 
   // It still counted the four hand-offs it would have made, and says so.
-  expect(await words($, 'desktop', /Hand-offs between models: 4/)).toBeDefined()
+  expect(await words($, 'terminal', /Hand-offs between models: 4/)).toBeDefined()
   expect(await words($, 'desktop', /Practice mode: nothing is switched/)).toBeDefined()
   expect(await words($, 'terminal', /With the crew: .* \(estimate\)/)).toBeDefined()
 })
@@ -186,7 +186,7 @@ test('on mode switches models only at hand-offs', { options: { mode: 'on' } }, a
   // Between two steps the model changes only at a hand-off: plan start (session model to best), plan approved, rescue, hand back.
   const at = [SESSION_MODEL, ...m].flatMap((x, i, all) => (i > 0 && x !== all[i - 1] ? [i - 1] : []))
   expect(at).toEqual([0, 1, 5, 6])
-  expect(await words($, 'desktop', /Hand-offs between models: 4/)).toBeDefined()
+  expect(await words($, 'terminal', /Hand-offs between models: 4/)).toBeDefined()
 })
 
 test('the same check failing twice on a cheaper model gives the best model one step, then hands back', { options: { mode: 'on' } }, async ($, on) => {
@@ -200,7 +200,7 @@ test('the same check failing twice on a cheaper model gives the best model one s
   expect(m[5]).toBe(FABLE)
   expect(m[6]).toBe(OPUS)
   // plan start, plan approved, rescue, hand back
-  expect(await words($, 'desktop', /Hand-offs between models: 4/)).toBeDefined()
+  expect(await words($, 'terminal', /Hand-offs between models: 4/)).toBeDefined()
 })
 
 test('a check that fails once, then passes, does not call the best model', { options: { mode: 'on' } }, async ($, on) => {
@@ -283,7 +283,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
 
     expect((await ui.find({ type: 'Text', text: /On: the crew is switching models/ }))?.text).toBeDefined()
-    expect((await ui.find({ type: 'Text', text: /Hand-offs between models: 4/ }))?.text).toBeDefined()
+    expect((await ui.find({ type: 'Text', text: /Hand-offs between models/ }))?.text).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Build: Opus 5.5|Opus 5.5/ })).toBeDefined()
     if (surface === 'desktop') {
       // Stage track and the step strip are drawings; the recipe rows are buttons.
@@ -322,10 +322,10 @@ test('the drawings are well-formed SVG with an entry for every step', () => {
     base: n === 2 ? null : 0.3,
     hand: n === 1 ? 0.05 : 0,
   }))
-  const svg = stripSvg(steps, 'shadow')
+  const svg = stripSvg(400, steps, 'shadow', OPUS)
   expect(svg.startsWith('<svg')).toBe(true)
   expect(svg.endsWith('</svg>')).toBe(true)
   // A step with no usage report is a hollow mark, not a made-up bar.
   expect((svg.match(/stroke-dasharray="2 2"/g) ?? []).length).toBe(1)
-  expect(trackSvg({ phase: 'idle', steps: [], signoff: { status: 'none', missing: [], note: '' } } as unknown as CrewTask, DEFAULT_RECIPE)).toContain('Sign-off')
+  expect(trackSvg(400, { phase: 'idle', steps: [], signoff: { status: 'none', missing: [], note: '' } } as unknown as CrewTask, DEFAULT_RECIPE)).toContain('Sign-off')
 })

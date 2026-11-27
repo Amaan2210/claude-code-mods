@@ -1,7 +1,6 @@
 import type { CrewRecipe, CrewStage, CrewStep, CrewTask } from '../types'
 import { colorOf, money, nameOf, normalise } from './crew'
-
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+import { svgDoc, svgLine, svgText, tint } from './kit'
 
 export const TRACK: CrewStage[] = ['plan', 'build', 'check', 'sign']
 const TRACK_NAME: Record<string, string> = { plan: 'Plan', build: 'Build', check: 'Check', sign: 'Sign-off' }
@@ -16,60 +15,87 @@ export const liveIndex = (task: CrewTask): number => {
   return last?.stage === 'check' ? 2 : 1
 }
 
-export const trackSvg = (task: CrewTask, recipe: CrewRecipe): string => {
+/** The four stages in a row: done, live, or still to come, each with the model that takes it. */
+export const trackSvg = (w: number, task: CrewTask, recipe: CrewRecipe): string => {
   const r = normalise(recipe)
   const live = liveIndex(task)
-  const W = 400
-  const H = 62
-  const colW = W / TRACK.length
-  let out = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="system-ui, Segoe UI, sans-serif">`
+  const H = 66
+  const colW = w / TRACK.length
+  let out = ''
   TRACK.forEach((s, i) => {
     const cx = colW * i + colW / 2
     const c = colorOf(r[s].model)
     const state = i < live ? 'done' : i === live ? 'lit' : 'todo'
-    if (i > 0) out += `<line x1="${cx - colW}" y1="14" x2="${cx}" y2="14" stroke="${i <= live ? '#4b4670' : '#2a2c3a'}" stroke-width="2"/>`
-    const halo = state === 'lit' ? `<circle cx="${cx}" cy="14" r="13" fill="${c}" opacity="0.22"/>` : ''
-    const fill = state === 'lit' ? c : '#111219'
-    const stroke = state === 'todo' ? '#343747' : c
-    const text = state === 'done' ? '✓' : String(i + 1)
-    out += `${halo}<circle cx="${cx}" cy="14" r="10" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`
-    out += `<text x="${cx}" y="18" text-anchor="middle" font-size="11" font-weight="600" fill="${state === 'lit' ? '#14121f' : state === 'done' ? c : '#70768a'}">${text}</text>`
-    out += `<text x="${cx}" y="40" text-anchor="middle" font-size="12.5" font-weight="600" fill="${state === 'todo' ? '#9097ab' : '#e6e8f0'}">${TRACK_NAME[s]}</text>`
+    if (i > 0) {
+      out +=
+        i <= live
+          ? `<line x1="${(cx - colW + 15).toFixed(1)}" y1="16" x2="${(cx - 15).toFixed(1)}" y2="16" stroke="${tint(c, 0.6)}" stroke-width="2"/>`
+          : svgLine(cx - colW + 15, 16, cx - 15, 16)
+    }
+    if (state === 'lit') out += `<circle cx="${cx.toFixed(1)}" cy="16" r="15" fill="${tint(c, 0.22)}"/>`
+    if (state === 'todo') {
+      out += `<circle cx="${cx.toFixed(1)}" cy="16" r="11" fill="none" class="l" stroke="#3a3e55" stroke-width="2"/>`
+      out += svgText(cx, 20, String(i + 1), { ink: 'f', size: 11, weight: 600, anchor: 'middle' })
+    } else {
+      out += `<circle cx="${cx.toFixed(1)}" cy="16" r="11" fill="${state === 'lit' ? c : tint(c, 0.14)}" stroke="${c}" stroke-width="2"/>`
+      out += svgText(cx, 20, state === 'done' ? '✓' : String(i + 1), { fill: state === 'lit' ? '#14121f' : c, size: 11, weight: 700, anchor: 'middle' })
+    }
+    out += svgText(cx, 44, TRACK_NAME[s] ?? s, { ink: state === 'todo' ? 'm' : 't', size: 13, weight: 600, anchor: 'middle' })
     const sub = s === 'check' ? `${nameOf(r.check.model)} helper` : nameOf(r[s].model)
-    out += `<text x="${cx}" y="55" text-anchor="middle" font-size="11" fill="${state === 'lit' ? c : '#70768a'}">${esc(sub)}</text>`
+    out += state === 'lit' ? svgText(cx, 60, sub, { fill: c, size: 11, anchor: 'middle' }) : svgText(cx, 60, sub, { ink: 'f', size: 11, anchor: 'middle' })
   })
-  return `${out}</svg>`
+  return svgDoc(w, H, out)
 }
 
 /** One bar per step: its colour is the model, its height the dollars. Dashed outline: the same step all on the best model. */
-export const stripSvg = (steps: readonly CrewStep[], mode: 'shadow' | 'on'): string => {
-  const W = 400
-  const H = 64
+export const stripSvg = (w: number, steps: readonly CrewStep[], mode: 'shadow' | 'on', best: string): string => {
+  const H = 78
   const shown = steps.slice(-60)
-  const slot = W / Math.max(shown.length, 12)
-  const bw = Math.max(2, Math.min(15, slot - 3))
+  const slot = w / Math.max(shown.length, 16)
+  const bw = Math.max(2, Math.min(18, slot - 4))
   const priced = shown.flatMap(s => (s.crew !== null && s.base !== null ? [s.crew, s.base] : []))
   const peak = Math.max(0.0001, ...priced)
-  const px = (v: number) => Math.max(3, (v / peak) * (H - 4))
-  let out = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`
-  out += `<defs><pattern id="h" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2" height="5" fill="#000" opacity="0.5"/></pattern></defs>`
+  const px = (v: number) => Math.max(3, (v / peak) * (H - 6))
+  const bestColor = colorOf(best)
+  let out =
+    '<defs><pattern id="h" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">' +
+    '<rect width="2" height="5" fill="#000" opacity="0.45"/></pattern></defs>'
   shown.forEach((s, i) => {
     const x = slot * i + (slot - bw) / 2
     const c = colorOf(mode === 'on' ? (s.ran ?? s.picked) : s.picked)
     if (s.crew === null || s.base === null) {
       // No usage was reported for this step: a hollow mark, not a made-up height.
-      out += `<rect x="${x}" y="${H - 6}" width="${bw}" height="5" fill="none" stroke="${c}" stroke-dasharray="2 2"/>`
+      out += `<rect x="${x.toFixed(1)}" y="${H - 6}" width="${bw.toFixed(1)}" height="5" fill="none" stroke="${c}" stroke-dasharray="2 2"/>`
       return
     }
     const h = px(s.crew)
-    if (s.base > s.crew * 1.03) out += `<rect x="${x - 1}" y="${H - px(s.base)}" width="${bw + 2}" height="${px(s.base)}" fill="none" stroke="#b494ff" stroke-opacity="0.55" stroke-dasharray="3 2"/>`
-    out += `<rect x="${x}" y="${H - h}" width="${bw}" height="${h}" rx="2" fill="${c}"/>`
+    if (s.base > s.crew * 1.03) {
+      out += `<rect x="${(x - 1).toFixed(1)}" y="${(H - px(s.base)).toFixed(1)}" width="${(bw + 2).toFixed(1)}" height="${px(s.base).toFixed(1)}" rx="2" fill="${tint(bestColor, 0.08)}" stroke="${tint(bestColor, 0.6)}" stroke-dasharray="3 2"/>`
+    }
+    out += `<rect x="${x.toFixed(1)}" y="${(H - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${c}"/>`
     if (s.hand > 0) {
       const hh = Math.min(h, px(s.hand))
-      out += `<rect x="${x}" y="${H - h}" width="${bw}" height="${hh}" rx="2" fill="url(#h)"/>`
+      out += `<rect x="${x.toFixed(1)}" y="${(H - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${hh.toFixed(1)}" rx="2" fill="url(#h)"/>`
     }
   })
-  return `${out}</svg>`
+  out += svgLine(0, H + 0.5, w, H + 0.5)
+  // The key, under the bars.
+  const models = [...new Set(shown.map(s => (mode === 'on' ? (s.ran ?? s.picked) : s.picked)))]
+  let at = 0
+  const Y = H + 18
+  for (const m of models) {
+    const word = nameOf(m)
+    out += `<rect x="${at}" y="${Y - 9}" width="10" height="10" rx="2" fill="${colorOf(m)}"/>` + svgText(at + 15, Y, word, { size: 11 })
+    at += 28 + word.length * 6
+  }
+  if (shown.some(s => s.hand > 0)) {
+    out += `<rect x="${at}" y="${Y - 9}" width="10" height="10" rx="2" fill="#8d95ad"/><rect x="${at}" y="${Y - 9}" width="10" height="10" rx="2" fill="url(#h)"/>` + svgText(at + 15, Y, 'Hand-off', { size: 11 })
+    at += 28 + 8 * 6
+  }
+  if (at + 150 < w) {
+    out += `<rect x="${at + 0.5}" y="${Y - 8.5}" width="9" height="9" rx="2" fill="none" stroke="${tint(bestColor, 0.7)}" stroke-dasharray="3 2"/>` + svgText(at + 15, Y, `All on ${nameOf(best)}`, { size: 11 })
+  }
+  return svgDoc(w, H + 24, out)
 }
 
 export type Headline = { crew: string; base: string; diff: string; isMore: boolean; known: number; unknown: number }

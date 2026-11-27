@@ -57,6 +57,8 @@ declare module 'claude-code' {
       task: Shaped<CrewTask>
       recipe: Shaped<CrewRecipe>
       info: Shaped<CrewInfo>
+      /** True while the pane shows the built-in example. */
+      isExample: boolean
     }
   }
 }
