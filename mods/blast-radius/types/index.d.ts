@@ -33,6 +33,8 @@ declare module 'claude-code' {
       run: Shaped<BlastRun>
       seen: Shaped<BlastSeen>
       view: Shaped<BlastView>
+      /** True while the pane shows the built-in example. */
+      isExample: boolean
     }
   }
 }
