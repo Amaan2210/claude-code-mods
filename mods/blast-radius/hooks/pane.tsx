@@ -115,7 +115,7 @@ export function richPane(el: Rich, d: PaneData, act: PaneActions, columns?: numb
           ).map(([color, label, n]) => (
             <Box gap={1} alignItems="center">
               <Text color={color}>●</Text>
-              <Box flexGrow={1}>
+              <Box flexGrow={1} minWidth={0}>
                 <Text>{label}</Text>
               </Box>
               <Text weight="bold" tabular>
@@ -169,7 +169,7 @@ export function richPane(el: Rich, d: PaneData, act: PaneActions, columns?: numb
               <Box key={`file:${x.file}`} flexDirection="column" paddingX={1} hover={{ backgroundColor: tint(TONE.grey, 0.12) }}>
                 <Box gap={1} alignItems="center">
                   <Text color={COLORS[x.state]}>●</Text>
-                  <Box flexGrow={1}>
+                  <Box flexGrow={1} minWidth={0}>
                     <Text size="footnote" mono weight="semibold" wrap="truncate-end">
                       {x.file}
                     </Text>

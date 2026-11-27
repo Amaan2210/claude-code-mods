@@ -1,6 +1,6 @@
 {
   "name": "crew",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A crew of models for one task: the best model plans and signs off, a mid model builds, a small one runs the checks. Starts in practice mode, which changes nothing and only shows what it would have done.",
   "author": {
     "name": "Amaan2210"
