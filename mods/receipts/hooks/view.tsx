@@ -4,22 +4,29 @@ import type { ElementTable, EngineInterface } from 'claude-code'
 import type { Claim, ClaimStatus, HelperCheck, Step } from '../types'
 import { basename, clip, plural, statusFor } from './check'
 import { runClaim, skipClaim } from './actions'
-import { readBusy, readClaims, readHelpers, readPicked, readSteps, setPicked } from './state'
+import { TONE, badge, heading, meter, pillSvg, svgDoc, svgLine, svgText, tint, widthOf } from './kit'
+import type { Rich } from './kit'
+import { SAMPLE } from './sample'
+import { readBusy, readClaims, readExample, readHelpers, readMeta, readPicked, readSteps, setExample } from './state'
 
-type Rich = Pick<ElementTable<'desktop'>, 'Box' | 'Text' | 'Button' | 'Svg' | 'Progress'>
 type Plain = Pick<ElementTable<'terminal'>, 'Box' | 'Text' | 'Button'>
 
 const LABEL: Record<ClaimStatus, string> = { ok: 'Proven', none: 'No proof', bad: 'Does not match' }
 const SIGN: Record<ClaimStatus, string> = { ok: '✓', none: '?', bad: '≠' }
-const HEX: Record<ClaimStatus, string> = { ok: '#6fd696', none: '#f0b35e', bad: '#ff7a6b' }
 const NAMED: Record<ClaimStatus, string> = { ok: 'green', none: 'yellow', bad: 'red' }
+const HEX: Record<ClaimStatus, string> = { ok: TONE.ok, none: TONE.warn, bad: TONE.bad }
+const GLYPH: Record<ClaimStatus, string> = { ok: '✓', none: '?', bad: '!' }
 
-type Data = {
+export type Data = {
   claims: Claim[]
   helpers: HelperCheck[]
   steps: Step[]
   picked: string
   isBusy: boolean
+  /** True once an answer of this session was read. */
+  hasAnswer: boolean
+  /** True while the pane shows the built-in example, not the session. */
+  isExample: boolean
 }
 
 const claimKey = (c: Claim): string => `c:${c.id}`
@@ -46,59 +53,64 @@ const summary = (d: Data): string =>
     ...d.helpers.map(h => `${h.status === 'ok' ? SIGN.ok : SIGN.bad} Helper report: ${h.note ?? 'matches what changed'}`),
   ].join('\n')
 
-const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-
 const COLOUR: Record<Step['kind'], string> = {
-  edit: '#ff6fb1',
-  run: '#5fd8ff',
-  helper: '#b79cff',
-  read: '#8a90a5',
-  search: '#8a90a5',
+  edit: TONE.pink,
+  run: TONE.cyan,
+  helper: TONE.pro,
+  read: TONE.grey,
+  search: TONE.grey,
 }
 
 /** Every step in order, so what came after what can be seen at a glance. */
-const timeline = (steps: Step[], lit: string[], gap: string | undefined, tone: string): string => {
+export const timeline = (w: number, steps: Step[], lit: string[], gap: string | undefined, tone: string, hasAnswer: boolean): string => {
   const list = steps.slice(-40)
   const X0 = 9
-  const X1 = 389
-  const Y = 23
+  const X1 = w - (hasAnswer ? 24 : 9)
+  const Y = 32
   const slots = Math.max(list.length, 9)
   const x = (i: number): number => X0 + ((X1 - X0) * i) / (slots - 1)
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="398" height="56" viewBox="0 0 398 56" font-family="system-ui, sans-serif" font-size="10.5">`
-  svg += `<line x1="${X0}" y1="${Y}" x2="${X1}" y2="${Y}" stroke="#5b6075" stroke-opacity=".5"/>`
+  let g = svgLine(X0, Y, X1, Y)
   const gapAt = gap ? list.findIndex(s => s.id === gap) : -1
   if (gapAt >= 0) {
-    const a = x(gapAt)
-    const b = x(list.length - 1)
-    svg += `<rect x="${a}" y="${Y - 9}" width="${Math.max(b - a, 6)}" height="18" rx="4" fill="#f0b35e" fill-opacity=".2" stroke="#f0b35e" stroke-opacity=".5"/>`
-    svg += `<text x="${b + 5}" y="${Y - 13}" text-anchor="end" fill="#f0b35e" font-weight="600">nothing checked after this edit</text>`
+    const a = x(gapAt) - 11
+    const b = hasAnswer ? X1 + 16 : x(list.length - 1) + 11
+    g += `<rect x="${a.toFixed(1)}" y="${Y - 12}" width="${Math.max(b - a, 8).toFixed(1)}" height="24" rx="6" fill="${tint(TONE.warn, 0.16)}" stroke="${tint(TONE.warn, 0.55)}"/>`
+    g += svgText(Math.max(b, 190), Y - 18, 'nothing checked after this edit', { fill: TONE.warn, size: 11, weight: 600, anchor: 'end' })
   }
   list.forEach((s, i) => {
     const cx = x(i)
-    const colour = s.kind === 'run' && s.exit ? '#ff7a6b' : COLOUR[s.kind]
-    if (lit.includes(s.id)) svg += `<circle cx="${cx}" cy="${Y}" r="9" fill="none" stroke="${tone}" stroke-width="1.5"/>`
-    if (s.kind === 'helper') svg += `<path d="M${cx} ${Y - 6} L${cx + 6} ${Y} L${cx} ${Y + 6} L${cx - 6} ${Y}Z" fill="${colour}"/>`
-    else svg += `<circle cx="${cx}" cy="${Y}" r="${s.kind === 'read' || s.kind === 'search' ? 3 : 5}" fill="${colour}"/>`
+    const colour = s.kind === 'run' && s.exit ? TONE.bad : COLOUR[s.kind]
+    if (lit.includes(s.id)) g += `<circle cx="${cx.toFixed(1)}" cy="${Y}" r="9" fill="none" stroke="${tone}" stroke-width="1.5"/>`
+    if (s.kind === 'helper') g += `<path d="M${cx} ${Y - 6} L${cx + 6} ${Y} L${cx} ${Y + 6} L${cx - 6} ${Y}Z" fill="${colour}"/>`
+    else g += `<circle cx="${cx.toFixed(1)}" cy="${Y}" r="${s.kind === 'read' || s.kind === 'search' ? 3 : 5.5}" fill="${colour}"/>`
   })
-  const key: [Step['kind'], string][] = [['edit', 'changed a file'], ['run', 'ran a command'], ['helper', 'helper'], ['read', 'looked']]
-  svg += key
-    .map(([k, word], i) => `<circle cx="${X0 + 3 + i * 95}" cy="48" r="3.5" fill="${COLOUR[k]}"/><text x="${X0 + 11 + i * 95}" y="51.5" fill="#9097ab">${esc(word)}</text>`)
-    .join('')
-  return `${svg}</svg>`
+  if (hasAnswer) g += `<rect x="${X1 + 9}" y="${Y - 9}" width="3.5" height="18" rx="1.5" class="t" fill="#e6e8f0"/>`
+  const key: [string, string][] = [
+    [COLOUR.edit, 'changed a file'],
+    [COLOUR.run, 'ran a command'],
+    [COLOUR.helper, 'helper'],
+    [COLOUR.read, 'looked'],
+  ]
+  let at = X0
+  for (const [colour, word] of key) {
+    g += `<circle cx="${at + 3}" cy="60" r="3.5" fill="${colour}"/>` + svgText(at + 11, 63.5, word, { size: 10.5 })
+    at += 26 + word.length * 5.6
+  }
+  if (hasAnswer) g += `<rect x="${at}" y="54" width="3" height="12" rx="1.5" class="t" fill="#e6e8f0"/>` + svgText(at + 9, 63.5, 'the answer', { size: 10.5 })
+  return svgDoc(w, 70, g)
 }
 
 export async function readData($: EngineInterface): Promise<Data> {
+  if (await readExample($)) return SAMPLE
   return {
-  claims: await readClaims($),
-  helpers: await readHelpers($),
-  steps: await readSteps($),
-  picked: await readPicked($),
-  isBusy: await readBusy($),
+    claims: await readClaims($),
+    helpers: await readHelpers($),
+    steps: await readSteps($),
+    picked: await readPicked($),
+    isBusy: await readBusy($),
+    hasAnswer: (await readMeta($)).hasAnswer,
+    isExample: false,
   }
-}
-
-function pick($: EngineInterface, key: string): () => Promise<string> {
-  return () => setPicked($, key)
 }
 
 // ---------- Terminal ----------
@@ -107,11 +119,13 @@ export function plain($: EngineInterface, el: Plain, d: Data) {
   const { Box, Text, Button } = el
   const key = defaultKey(d)
   const sel = d.claims.find(c => claimKey(c) === key)
-  const canRun = !!sel && !!sel.cmd && sel.status !== 'ok' && !sel.isSkipped
+  const canRun = !!sel && !!sel.cmd && sel.status !== 'ok' && !sel.isSkipped && !d.isExample
   const last = d.steps.slice(-6)
   return (
     <Box flexDirection="column">
-      <Text bold>Receipts: {d.claims.length ? statusFor(d.claims) : 'no answer checked yet'}</Text>
+      <Text bold>
+        Receipts{d.isExample ? ' (example)' : ''}: {d.claims.length ? statusFor(d.claims) : 'no answer checked yet'}
+      </Text>
       {d.claims.map(c => (
         <Text color={NAMED[c.status]}>
           {SIGN[c.status]} {c.isSkipped ? 'Skipped' : LABEL[c.status]}: {clip(c.text, 70)}
@@ -123,9 +137,9 @@ export function plain($: EngineInterface, el: Plain, d: Data) {
           {clip(c.why, 110)}
         </Text>
       ))}
-      {d.helpers.map(h => (
-        <Text color={h.status === 'ok' ? NAMED.ok : NAMED.bad}>
-          {h.status === 'ok' ? SIGN.ok : SIGN.bad} Helper report: {h.note ? clip(h.note, 100) : 'matches what changed'}
+      {d.helpers.map(helper => (
+        <Text color={helper.status === 'ok' ? NAMED.ok : NAMED.bad}>
+          {helper.status === 'ok' ? SIGN.ok : SIGN.bad} Helper report: {helper.note ? clip(helper.note, 100) : 'matches what changed'}
         </Text>
       ))}
       {last.length ? <Text dimColor>Last steps: {last.map(stepWords).join(' / ')}</Text> : <Text dimColor>No steps yet.</Text>}
@@ -141,159 +155,260 @@ export function plain($: EngineInterface, el: Plain, d: Data) {
 
 // ---------- Desktop and the other rich surfaces ----------
 
-const proofRows = (steps: Step[], ids: string[], rich: Rich) => {
-  const { Box, Text } = rich
-  return ids.flatMap(id => {
-    const s = steps.find(x => x.id === id)
-    if (!s) return []
-    if (s.kind === 'edit') {
-      return [
-        <Box key={id} flexDirection="column" borderStyle="round" borderColor="#3a3e55" paddingX={1}>
-          <Text mono bold>
-            Edited {s.file} (+{s.add ?? 0} -{s.del ?? 0})
-          </Text>
-          {(s.diff ?? []).slice(0, 4).map((line, i) => (
-            <Text mono color={line.startsWith('+') ? '#9be7b3' : '#ffb0a8'}>
-              {line}
-            </Text>
-          ))}
-        </Box>,
-      ]
-    }
-    return [
-      <Box key={id} flexDirection="column" borderStyle="round" borderColor="#3a3e55" paddingX={1}>
-        <Text mono bold color={s.exit ? '#ff7a6b' : undefined}>
-          Ran {s.cmd}
-          {s.exit === undefined ? '' : `, exit ${s.exit}`}
-          {s.by ? ' (run by Receipts)' : ''}
+/** One step that proves or breaks a claim, with a little of what it showed. */
+function proofBox(el: Rich, s: Step) {
+  const { Box, Text } = el
+  const isEdit = s.kind === 'edit'
+  const lines = isEdit ? (s.diff ?? []).slice(0, 4) : (s.out ?? '').split('\n').filter(Boolean).slice(-4)
+  return (
+    <Box flexDirection="column" borderStyle="round" borderColor={tint(TONE.grey, 0.35)}>
+      <Box gap={1} alignItems="center" paddingX={1} backgroundColor={tint(TONE.grey, 0.12)}>
+        <Text size="footnote" dimColor>
+          {isEdit ? 'Edited' : s.by ? 'Receipts ran' : 'Ran'}
         </Text>
-        {(s.out ?? '').split('\n').filter(Boolean).slice(0, 5).map((line, i) => (
-          <Text mono dimColor>
-            {line}
+        <Box flexGrow={1}>
+          <Text size="footnote" mono weight="semibold" wrap="truncate-end">
+            {isEdit ? (s.file ?? '') : (s.cmd ?? '')}
           </Text>
-        ))}
-      </Box>,
-    ]
-  })
+        </Box>
+        {isEdit ? (
+          <Text size="footnote" tabular>
+            <Text color={TONE.ok}>+{s.add ?? 0}</Text> <Text color={TONE.bad}>-{s.del ?? 0}</Text>
+          </Text>
+        ) : s.exit === undefined ? null : (
+          <Text size="footnote" weight="semibold" color={s.exit ? TONE.bad : TONE.ok}>
+            exit {s.exit}
+          </Text>
+        )}
+      </Box>
+      {lines.length ? (
+        <Box flexDirection="column" paddingX={1}>
+          {lines.map(line =>
+            isEdit ? (
+              <Text size="caption" mono wrap="truncate-end" color={line.startsWith('+') ? TONE.ok : TONE.bad}>
+                {line}
+              </Text>
+            ) : (
+              <Text size="caption" mono wrap="truncate-end" dimColor>
+                {line}
+              </Text>
+            ),
+          )}
+        </Box>
+      ) : null}
+    </Box>
+  )
 }
 
-export function rich($: EngineInterface, el: Rich, d: Data) {
-  const { Box, Text, Button, Svg, Progress } = el
-  const key = defaultKey(d)
-  const claim = d.claims.find(c => claimKey(c) === key)
-  const helper = d.helpers.find(h => helperKey(h) === key)
+function claimCard($: EngineInterface, el: Rich, d: Data, c: Claim) {
+  const { Box, Text, Button } = el
+  const tone = HEX[c.status]
+  const canRun = !!c.cmd && !c.isSkipped && !d.isExample
+  const proof = c.proof.flatMap(id => d.steps.find(s => s.id === id) ?? [])
+  return (
+    <Box flexDirection="column" gap={1} borderStyle="round" borderColor={tint(tone, 0.6)} backgroundColor={tint(tone, 0.06)} paddingX={2} paddingY={1}>
+      <Box flexDirection="column">
+        <Text size="caption" weight="bold" color={tone}>
+          {(c.isSkipped ? 'Skipped' : LABEL[c.status]).toUpperCase()}
+        </Text>
+        <Text weight="semibold">
+          {'“'}
+          {c.text}
+          {'”'}
+        </Text>
+      </Box>
+      <Text>{c.why}</Text>
+      {proof.length ? proof.map(s => proofBox(el, s)) : <Text dimColor>No step in this session shows this.</Text>}
+      {canRun ? (
+        <Box gap={1} alignItems="center">
+          <Button key="run" label={`Run ${clip(c.cmd ?? '', 36)} now`} variant="primary" onPress={() => runClaim($, c.id)} />
+          <Button key="skip" label="Skip" onPress={() => skipClaim($, c.id)} />
+          <Text size="footnote" dimColor>
+            {d.isBusy ? 'Running…' : 'Receipts runs it and tells Claude the result.'}
+          </Text>
+        </Box>
+      ) : c.cmd && d.isExample ? (
+        <Text size="footnote" dimColor>
+          In a real session two buttons sit here: Run {c.cmd} now, and Skip.
+        </Text>
+      ) : null}
+    </Box>
+  )
+}
+
+function helperCard(el: Rich, helper: HelperCheck) {
+  const { Box, Text } = el
+  return (
+    <Box flexDirection="column" gap={1} borderStyle="round" borderColor={tint(TONE.bad, 0.6)} backgroundColor={tint(TONE.bad, 0.06)} paddingX={2} paddingY={1}>
+      <Box flexDirection="column">
+        <Text size="caption" weight="bold" color={TONE.bad}>
+          A HELPER'S REPORT DOES NOT MATCH
+        </Text>
+        <Text weight="semibold" maxLines={3}>
+          {'“'}
+          {helper.text}
+          {'”'}
+        </Text>
+      </Box>
+      <Text>
+        {helper.said === undefined ? 'The report gives no count.' : `The report says ${plural(helper.said, 'file')} changed.`} {plural(helper.changed.length, 'file')} really
+        changed.
+      </Text>
+      <Box flexDirection="column" borderStyle="round" borderColor={tint(TONE.grey, 0.35)} paddingX={1}>
+        {helper.changed.slice(0, 8).map(f => (
+          <Box justifyContent="space-between" gap={1}>
+            <Text size="footnote" mono wrap="truncate-end">
+              {f}
+            </Text>
+            <Text size="footnote" color={TONE.ok}>
+              changed
+            </Text>
+          </Box>
+        ))}
+        {helper.missing.slice(0, 6).map(f => (
+          <Box justifyContent="space-between" gap={1}>
+            <Text size="footnote" mono wrap="truncate-end">
+              {f}
+            </Text>
+            <Text size="footnote" weight="semibold" color={TONE.bad}>
+              not touched
+            </Text>
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  )
+}
+
+export function rich($: EngineInterface, el: Rich, d: Data, columns?: number) {
+  const { Box, Text, Button, Svg } = el
+  const w = widthOf(columns)
   const ok = d.claims.filter(c => c.status === 'ok').length
-  const tone = HEX[claim?.status ?? helper?.status ?? 'ok']
-  const lit = claim ? claim.proof : []
-  const canRun = !!claim && !!claim.cmd && claim.status !== 'ok' && !claim.isSkipped
+  const open = d.claims.filter(c => c.status !== 'ok')
+  const badHelpers = d.helpers.filter(h => h.status === 'bad')
+  const first = open[0]
+  const tone = first ? HEX[first.status] : TONE.ok
+  const isEmpty = d.claims.length === 0 && d.helpers.length === 0
 
   return (
-    <Box flexDirection="column" gap={1} padding={1}>
+    <Box flexDirection="column" gap={1}>
       <Box justifyContent="space-between" alignItems="center">
-        <Text bold size="heading">
-          Receipts
-        </Text>
-        <Button
-          key="copy"
-          label="Copy summary"
-          onPress={async () => {
-            await $.ui.copy({ text: summary(d), surface: 'desktop' })
-            $.ui.toast('Copied the summary')
-          }}
-        />
-      </Box>
-
-      {d.claims.length ? (
-        <Progress label={`${ok} of ${plural(d.claims.length, 'claim')} proven`} value={ok / d.claims.length} />
-      ) : (
-        <Text dimColor>Waiting for an answer from Claude.</Text>
-      )}
-
-      <Box flexDirection="column">
-        <Text dimColor bold>
-          In Claude's answer
-        </Text>
-        {d.claims.length === 0 && <Text dimColor>Nothing in the last answer could be checked.</Text>}
-        {d.claims.map(c => (
-          <Button key={claimKey(c)} plain onPress={pick($, claimKey(c))}>
-            <Text color={HEX[c.status]} bold={claimKey(c) === key}>
-              {SIGN[c.status]}{' '}
-            </Text>
-            {clip(c.text, 80)} <Text color={HEX[c.status]}>{c.isSkipped ? 'Skipped' : LABEL[c.status]}</Text>
-          </Button>
-        ))}
-      </Box>
-
-      <Box flexDirection="column">
-        <Text dimColor bold>
-          From helpers
-        </Text>
-        {d.helpers.length === 0 && <Text dimColor>No helper ran in this session.</Text>}
-        {d.helpers.map(h => (
-          <Button key={helperKey(h)} plain onPress={pick($, helperKey(h))}>
-            <Text color={HEX[h.status === 'ok' ? 'ok' : 'bad']}>{h.status === 'ok' ? SIGN.ok : SIGN.bad} </Text>
-            {clip(h.text, 60)}{' '}
-            <Text dimColor>
-              {h.status === 'ok' ? 'Matches' : `${h.changed.length} changed${h.said === undefined ? '' : ` of ${h.said} said`}`}
-            </Text>
-          </Button>
-        ))}
-      </Box>
-
-      <Box flexDirection="column">
-        <Text dimColor bold>
-          The session, step by step ({plural(d.steps.length, 'step')})
-        </Text>
-        <Svg
-          source={timeline(d.steps, lit, claim?.gap, tone)}
-          alt={`Each of the last ${Math.min(d.steps.length, 40)} steps of the session, in order`}
-          width={398}
-          height={56}
-        />
-      </Box>
-
-      {claim ? (
-        <Box flexDirection="column" gap={1} borderStyle="round" borderColor={tone} padding={1}>
-          <Text bold color={tone}>
-            {claim.isSkipped ? 'Skipped' : LABEL[claim.status]}
+        <Box gap={1} alignItems="center">
+          <Text size="caption" weight="semibold" dimColor>
+            RECEIPTS
           </Text>
-          <Text bold>{'“'}{claim.text}{'”'}</Text>
-          <Text>{claim.why}</Text>
-          {claim.proof.length ? (
-            proofRows(d.steps, claim.proof, el)
-          ) : (
-            <Text dimColor>No step in this session shows this.</Text>
-          )}
-          {canRun ? (
-            <Box gap={1}>
-              <Button key="run" label={`Run ${clip(claim.cmd ?? '', 40)} now`} variant="primary" onPress={() => runClaim($, claim.id)} />
-              <Button key="skip" label="Skip" onPress={() => skipClaim($, claim.id)} />
-              {d.isBusy ? <Text dimColor>Running</Text> : null}
-            </Box>
-          ) : null}
+          {d.isExample ? <Svg source={pillSvg('Example', TONE.info)} alt="This is an example, not your session" /> : null}
+        </Box>
+        {d.isExample ? (
+          <Button key="clear-example" label="Close the example" onPress={() => setExample($, false)} />
+        ) : isEmpty ? null : (
+          <Button
+            key="copy"
+            label="Copy summary"
+            onPress={async press => {
+              await $.ui.copy({ text: summary(d), surface: press.surface })
+              $.ui.toast('Copied the summary')
+            }}
+          />
+        )}
+      </Box>
+
+      <Box flexDirection="column">
+        <Box gap={1} alignItems="flex-end">
+          <Text size="title" weight="bold" tabular>
+            {d.claims.length ? statusFor(d.claims) : 'No claims checked yet'}
+          </Text>
+          {d.claims.length ? <Text dimColor>{open.length ? `${open.length} to look at` : 'nothing to look at'}</Text> : null}
+        </Box>
+        <Svg
+          source={meter(w, d.claims.length ? d.claims.map(c => HEX[c.status]) : ['', '', ''])}
+          alt={d.claims.length ? `${ok} of ${plural(d.claims.length, 'claim')} proven` : 'No claims yet'}
+        />
+      </Box>
+
+      {isEmpty ? (
+        <Box flexDirection="column" gap={1}>
+          <Text dimColor>
+            {d.hasAnswer
+              ? 'Nothing in the last answer could be checked. Receipts checks sentences like "the tests pass" or "I changed cart.js".'
+              : 'Waiting for an answer from Claude. When Claude says "the tests pass" or "I changed cart.js", each claim shows here with the step that proves it.'}
+          </Text>
+          <Box>
+            <Button key="example" label="See an example" onPress={() => setExample($, true)} />
+          </Box>
         </Box>
       ) : null}
 
-      {helper ? (
-        <Box flexDirection="column" gap={1} borderStyle="round" borderColor={tone} padding={1}>
-          <Text bold color={tone}>
-            Helper report: {helper.status === 'ok' ? 'matches' : 'does not match'}
-          </Text>
-          <Text bold>{'“'}{helper.text}{'”'}</Text>
-          <Text>
-            {helper.said === undefined ? 'The report gives no count.' : `The report says ${plural(helper.said, 'file')} changed.`}{' '}
-            {plural(helper.changed.length, 'file')} really changed.
-          </Text>
-          {helper.changed.map(f => (
-            <Text mono color={HEX.ok}>
-              {SIGN.ok} {f} changed
-            </Text>
+      {d.claims.length ? (
+        <Box flexDirection="column">
+          {heading(el, "In Claude's answer")}
+          {d.claims.map(c => {
+            const isFirst = c === first
+            return (
+              <Box
+                key={claimKey(c)}
+                gap={1}
+                alignItems="center"
+                paddingX={1}
+                borderStyle="round"
+                borderColor={isFirst ? tint(HEX[c.status], 0.5) : 'transparent'}
+                backgroundColor={isFirst ? tint(HEX[c.status], 0.08) : 'transparent'}
+                hover={{ backgroundColor: tint(TONE.grey, 0.14) }}
+              >
+                <Svg source={badge(GLYPH[c.status], HEX[c.status])} alt={LABEL[c.status]} width={16} height={16} />
+                <Box flexGrow={1}>
+                  <Text maxLines={2}>{c.text}</Text>
+                </Box>
+                <Text size="footnote" weight="semibold" color={HEX[c.status]}>
+                  {c.isSkipped ? 'Skipped' : LABEL[c.status]}
+                </Text>
+              </Box>
+            )
+          })}
+        </Box>
+      ) : null}
+
+      {isEmpty ? null : (
+        <Box flexDirection="column">
+          {heading(el, 'From helpers')}
+          {d.helpers.length === 0 ? (
+            <Box paddingX={1}>
+              <Text dimColor>No helper ran in this session.</Text>
+            </Box>
+          ) : null}
+          {d.helpers.map(helper => (
+            <Box key={helperKey(helper)} gap={1} alignItems="center" paddingX={1} hover={{ backgroundColor: tint(TONE.grey, 0.14) }}>
+              <Svg
+                source={badge(helper.status === 'ok' ? '✓' : '!', helper.status === 'ok' ? TONE.ok : TONE.bad)}
+                alt={helper.status === 'ok' ? 'Matches' : 'Does not match'}
+                width={16}
+                height={16}
+              />
+              <Box flexGrow={1}>
+                <Text maxLines={1}>{clip(helper.task || helper.text, 70)}</Text>
+              </Box>
+              <Text size="footnote" weight="semibold" color={helper.status === 'ok' ? TONE.ok : TONE.bad}>
+                {helper.status === 'ok' ? 'Report matches' : `${helper.changed.length} changed${helper.said === undefined ? '' : `, said ${helper.said}`}`}
+              </Text>
+            </Box>
           ))}
-          {helper.missing.map(f => (
-            <Text mono color={HEX.bad}>
-              X {f} not touched
-            </Text>
-          ))}
+        </Box>
+      )}
+
+      <Box flexDirection="column">
+        {heading(el, 'The session, step by step', d.steps.length ? plural(d.steps.length, 'step') : 'no steps yet')}
+        <Svg
+          source={timeline(w, d.steps, first ? first.proof : [], first?.gap, tone, d.hasAnswer || d.claims.length > 0)}
+          alt={`Each of the last ${Math.min(d.steps.length, 40)} steps of the session, in order`}
+        />
+      </Box>
+
+      {open.slice(0, 3).map(c => claimCard($, el, d, c))}
+      {badHelpers.slice(0, 2).map(h => helperCard(el, h))}
+      {d.claims.length > 0 && open.length === 0 && badHelpers.length === 0 ? (
+        <Box gap={1} alignItems="center" borderStyle="round" borderColor={tint(TONE.ok, 0.5)} backgroundColor={tint(TONE.ok, 0.06)} paddingX={2} paddingY={1}>
+          <Svg source={badge('✓', TONE.ok)} alt="Proven" width={16} height={16} />
+          <Text>Every claim in the last answer has proof. Nothing to do.</Text>
         </Box>
       ) : null}
     </Box>

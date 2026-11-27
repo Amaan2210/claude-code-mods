@@ -1,6 +1,6 @@
 {
   "name": "receipts",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Checks what Claude and its helpers say they did against what really happened. Speaks up only when a claim has no proof.",
   "author": {
     "name": "Amaan2210"

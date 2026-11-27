@@ -7,11 +7,13 @@ import {
   addHelper,
   addStep,
   addTask,
+  readExample,
   readMeta,
   readSteps,
   readTasks,
   resetRecord,
   setClaims,
+  setExample,
   setMeta,
   setPicked,
   tick,
@@ -69,7 +71,11 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('turn.start', async ($, e, next) => {
-    if (e.agentId === undefined) await setMeta($, { turnFrom: await tick($), hasAnswer: false })
+    if (e.agentId === undefined) {
+      await setMeta($, { turnFrom: await tick($), hasAnswer: false })
+      // Real work has started: the example makes way for it.
+      if (await readExample($)) await setExample($, false)
+    }
     return next(e)
   })
 
@@ -133,7 +139,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const data = await readData($)
     if (e.surface === 'terminal') return plain($, $.ui.resolve(e), data)
-    return rich($, $.ui.resolve(e), data)
+    return rich($, $.ui.resolve(e), data, e.props.bodyColumns)
   })
 }
 

@@ -16,6 +16,7 @@ const metaA = atom(
 )
 const pickedA = atom({ plugin: 'receipts', key: 'picked' } as const, '')
 const busyA = atom({ plugin: 'receipts', key: 'isBusy' } as const, false)
+const exampleA = atom({ plugin: 'receipts', key: 'isExample' } as const, false)
 
 const MAX_STEPS = 300
 
@@ -91,6 +92,15 @@ export function setPicked($: EngineInterface, key: string): Promise<string> {
 
 export function setBusy($: EngineInterface, isBusy: boolean): Promise<boolean> {
   return update($, busyA, () => isBusy)
+}
+
+export function readExample($: EngineInterface): Promise<boolean> {
+  return read($, exampleA)
+}
+
+/** Shows the built-in example in the pane, or goes back to the session. */
+export function setExample($: EngineInterface, isExample: boolean): Promise<boolean> {
+  return update($, exampleA, () => isExample)
 }
 
 /** A /clear starts the record over. */
