@@ -31,6 +31,8 @@ In the desktop app: click **+** next to the prompt box, then **Plugins**, **Add 
 
 Each mod has a pane. Open it with its command: `/receipts`, `/blast-radius`, `/crew` or `/pit-stop`.
 
+A pane is empty until there is something to show. Press **See an example** in it to see a filled one with made-up data.
+
 ## Receipts
 
 - Keeps a record of every file read, edit and command in the turn.
